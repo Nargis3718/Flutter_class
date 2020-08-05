@@ -1,170 +1,109 @@
-import 'package:file_picker/file_picker.dart';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
-import 'package:audioplayers/audioplayers.dart';
+import 'dart:async';
+import 'package:video_player/video_player.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(VideoPlayerApp());
 
-class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
-
+class VideoPlayerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AudioPlayer',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: MyHomePage(title: 'Audio Player'),
+      title: 'My video Playlist',
+      home: VideoPlayerScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  final String title;
-
+class VideoPlayerScreen extends StatefulWidget {
+  VideoPlayerScreen({Key key}) : super(key: key);
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  _VideoPlayerScreenState createState() => _VideoPlayerScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  bool _isPlaying = false;
-
-  AudioPlayer audioPlayer;
-
+class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
+  VideoPlayerController _controller;
+  Future<void> _initializeVideoPlayerFuture;
   @override
   void initState() {
+    // Create and store the VideoPlayerController. The VideoPlayerController
+    // offers several different constructors to play videos from assets, files,
+    // or the internet.
+    _controller = VideoPlayerController.asset('videos/nature.mp4');
+    //_controller = VideoPlayerController.asset('https://github.com/Nargis3718/Flutter_class/blob/master/nature.mp4');
+
+    // Initialize the controller and store the Future for later use.
+    _initializeVideoPlayerFuture = _controller.initialize();
+    // Use the controller to loop the video.
+    _controller.setLooping(true);
     super.initState();
-
-    audioPlayer = AudioPlayer();
   }
 
-  playAudioFromLocalStorage(path) async {
-    int response = await audioPlayer.play(path, isLocal: true);
-
-    if (response == 1) {
-      // success
-
-    } else {
-      print('Some error occured in playing from storage!');
-    }
-  }
-
-  pauseAudio() async {
-    int response = await audioPlayer.pause();
-
-    if (response == 1) {
-      // success
-
-    } else {
-      print('Some error occured in pausing');
-    }
-  }
-
-  stopAudio() async {
-    int response = await audioPlayer.stop();
-
-    if (response == 1) {
-      // success
-
-    } else {
-      print('Some error occured in stopping');
-    }
-  }
-
-  resumeAudio() async {
-    int response = await audioPlayer.resume();
-
-    if (response == 1) {
-      // success
-
-    } else {
-      print('Some error occured in resuming');
-    }
+  @override
+  void dispose() {
+    // Ensure disposing of the VideoPlayerController to free up resources.
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text('My Video Playlist'),
         backgroundColor: Colors.deepOrangeAccent,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            Container(
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    children: [
-                      RaisedButton(
-                        onPressed: () {
-                          if (_isPlaying == true) {
-                            pauseAudio();
+      // Use a FutureBuilder to display a loading spinner while waiting for the
+      // VideoPlayerController to finish initializing.
+      body: FutureBuilder(
+        future: _initializeVideoPlayerFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.done) {
+            // If the VideoPlayerController has finished initialization, use
+            // the data it provides to limit the aspect ratio of the video.
+            return AspectRatio(
+              aspectRatio: _controller.value.aspectRatio,
 
-                            setState(() {
-                              _isPlaying = false;
-                            });
-                          } else {
-                            resumeAudio();
-
-                            setState(() {
-                              _isPlaying = true;
-                            });
-                          }
-                        },
-                        child:
-                            Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                        color: Colors.deepOrangeAccent,
-                      ),
-                      RaisedButton(
-                        onPressed: () {
-                          stopAudio();
-
-                          setState(() {
-                            _isPlaying = false;
-                          });
-                        },
-                        child: Icon(Icons.stop),
-                        color: Colors.deepOrangeAccent,
-                      ),
-                    ],
-                  ),
-                ],
+              // Use the VideoPlayer widget to display the video.
+              child: VideoPlayer(_controller),
+            );
+          } else {
+            // If the VideoPlayerController is still initializing, show a
+            // loading spinner.
+            return Center(
+                child: CircularProgressIndicator(
+              backgroundColor: Colors.deepOrangeAccent,
+              valueColor: new AlwaysStoppedAnimation<Color>(
+                Colors.deepOrangeAccent,
               ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                RaisedButton(
-                  onPressed: () async {
-                    var path =
-                        await FilePicker.getFilePath(type: FileType.audio);
-
-                    setState(() {
-                      _isPlaying = true;
-                    });
-
-                    playAudioFromLocalStorage(path);
-                  },
-                  child: Text(
-                    'Click Here To Play',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  color: Colors.deepOrangeAccent,
-                ),
-              ],
-            ),
-          ],
+            ));
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          // Wrap the play or pause in a call to `setState`. This ensures the
+          // correct icon is shown.
+          setState(() {
+            // If the video is playing, pause it.
+            if (_controller.value.isPlaying) {
+              _controller.pause();
+            } else {
+              // If the video is paused, play it.
+              _controller.play();
+            }
+          });
+        },
+        // Display the correct icon depending on the state of the player.
+        child: Icon(
+          _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+          color: Colors.deepOrange[100],
         ),
+        splashColor: Colors.deepOrangeAccent,
       ),
       backgroundColor: Colors.deepOrange[100],
+      // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
